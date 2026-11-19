@@ -134,6 +134,8 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.02em; }
 .banner-stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 8px; background: var(--accent); }
 .banner-main { position: relative; z-index: 1; display: flex; align-items: center; gap: 18px; }
 .banner-badge { box-shadow: 0 6px 24px rgb(0 0 0 / 0.35) !important; }
+svg.banner-badge { box-shadow: none !important; filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.4)); }
+.badge-shield { flex: none; display: block; }
 .eyebrow { font-family: var(--num); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; }
 .team-title { font-size: 38px; font-weight: 900; line-height: 1.1; letter-spacing: -0.03em; }
 .banner-en { font-family: var(--num); font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; font-weight: 500; }
@@ -256,3 +258,5 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.02em; }
 
 .skel { min-height: 150px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: sh 1.4s infinite; }
 @keyframes sh { to { background-position: -200% 0; } }
+.badge-logo { background: radial-gradient(circle at 50% 40%, #2a2e37, #15171c); }
+.badge-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }

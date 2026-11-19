@@ -1,3 +1,4 @@
+import generatedLogos from "./logos.generated.json";
 import { resolveTeam } from "./teams";
 
 /** 팀 대표색 [주색, 보조색] */
@@ -106,11 +107,12 @@ export const TEAM_COLORS: Record<string, [string, string]> = {
 };
 
 /**
- * 공식 로고 이미지 경로 (선택). 로고 사용 권한이 있는 이미지를
- * public/logos/ 에 넣고 여기에 등록하면 엠블럼 대신 표시됩니다.
- * 예: "kbo-hanwha": "/logos/kbo-hanwha.png"
+ * 팀 로고 이미지 경로.
+ * public/logos/{팀id}.png 처럼 파일을 넣으면 빌드 때 자동 등록됩니다 (scripts/gen-logos.mjs).
+ * 다른 경로를 쓰고 싶으면 아래 MANUAL 에 직접 적어도 됩니다.
  */
-export const TEAM_LOGOS: Record<string, string> = {};
+const MANUAL: Record<string, string> = {};
+export const TEAM_LOGOS: Record<string, string> = { ...(generatedLogos as Record<string, string>), ...MANUAL };
 
 const KBO_ABBR: Record<string, string> = {
   "kbo-hanwha": "HH",
