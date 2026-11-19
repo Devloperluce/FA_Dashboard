@@ -130,7 +130,8 @@ export function teamAbbr(teamId: string) {
 }
 
 // ---- 색 계산 ----
-const BG = "#0b0c0f"; // 화면 배경 (globals.css 의 --bg 와 같게)
+const BG = "#0b0c0f"; // 다크 모드 배경 (globals.css 의 --bg 와 같게)
+const BG_LIGHT = "#f4f4f1"; // 라이트 모드 배경
 
 const hexToRgb = (h: string) => {
   const n = parseInt(h.slice(1), 16);
@@ -183,12 +184,28 @@ export type TeamTheme = {
   /** 어두운 배경 위에서 읽히는 포인트 색 */
   accent: string;
   accentInk: string;
+  /** 밝은 배경 위에서 읽히는 포인트 색 */
+  accentLight: string;
+  accentLightInk: string;
 };
 
 const NEUTRAL: Record<string, [string, string]> = {
   baseball: ["#1F4E8C", "#C8102E"],
   soccer: ["#1E7F4F", "#0B2E4F"],
 };
+
+/** 배경 대비 4.5:1 이 될 때까지 색상·채도는 유지하고 명도만 올리거나(up) 내림(down) */
+function readableOn(pool: string[], bg: string, dir: "up" | "down") {
+  const base = [...pool].sort((a, b) => contrast(b, bg) - contrast(a, bg))[0];
+  if (contrast(base, bg) >= 4.5) return base;
+  const [h, s, l] = rgbToHsl(base);
+  const sat = saturation(base) > 0.2 ? Math.max(s, 0.6) : s;
+  let out = base;
+  for (let L = l; L >= 0.08 && L <= 0.92 && contrast(out, bg) < 4.5; L += dir === "up" ? 0.02 : -0.02) {
+    out = hslToHex(h, sat, L);
+  }
+  return out;
+}
 
 export function teamTheme(teamId: string | null): TeamTheme {
   let pair: [string, string] = ["#3A3F4B", "#1A1D24"];
@@ -198,21 +215,16 @@ export function teamTheme(teamId: string | null): TeamTheme {
   }
   const [primary, secondary] = pair;
 
-  // 포인트 색: 채도가 있는 색 중 배경 대비가 더 좋은 색을 고르고, 4.5:1이 될 때까지 밝힘
+  // 포인트 색: 채도가 있는 색 중 배경 대비가 더 좋은 색을 골라, 다크/라이트 배경에서 각각 4.5:1 이상으로 보정
   const colorful = [primary, secondary].filter((c) => saturation(c) > 0.2);
   const pool = colorful.length ? colorful : [primary, secondary];
-  const base = pool.sort((a, b) => contrast(b, BG) - contrast(a, BG))[0];
-  // 흰색을 섞으면 탁해지므로, 색상(H)과 채도(S)는 유지하고 명도(L)만 올림
-  let accent = base;
-  if (contrast(base, BG) < 4.5) {
-    const [h, s, l] = rgbToHsl(base);
-    const sat = saturation(base) > 0.2 ? Math.max(s, 0.6) : s;
-    for (let L = l; L <= 0.92 && contrast(accent, BG) < 4.5; L += 0.02) {
-      accent = hslToHex(h, sat, L);
-    }
-  }
-
-  return { primary, secondary, ink: inkOn(primary), accent, accentInk: inkOn(accent) };
+  const accent = readableOn(pool, BG, "up");
+  const accentLight = readableOn(pool, BG_LIGHT, "down");
+  return {
+    primary, secondary, ink: inkOn(primary),
+    accent, accentInk: inkOn(accent),
+    accentLight, accentLightInk: inkOn(accentLight),
+  };
 }
 
 /** 루트 요소 style 에 바로 넣을 CSS 변수 */
@@ -221,7 +233,9 @@ export function themeVars(t: TeamTheme): Record<string, string> {
     "--team": t.primary,
     "--team-2": t.secondary,
     "--team-ink": t.ink,
-    "--accent": t.accent,
-    "--accent-ink": t.accentInk,
+    "--accent-d": t.accent,
+    "--accent-d-ink": t.accentInk,
+    "--accent-l": t.accentLight,
+    "--accent-l-ink": t.accentLightInk,
   };
 }

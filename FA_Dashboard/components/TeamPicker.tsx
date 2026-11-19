@@ -105,7 +105,7 @@ export default function TeamPicker({ favorites, onToggle, onClose }: Props) {
               className={`team-card ${on ? "on" : ""}`}
               onClick={() => onToggle(t.id)}
               aria-pressed={on}
-              style={{ "--card-team": th.primary, "--card-accent": th.accent } as React.CSSProperties}
+              style={{ "--card-team": th.primary, "--card-accent-d": th.accent, "--card-accent-l": th.accentLight } as React.CSSProperties}
             >
               <TeamBadge teamId={t.id} size={38} />
               <span className="team-names">
