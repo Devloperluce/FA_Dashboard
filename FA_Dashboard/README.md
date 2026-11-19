@@ -39,5 +39,5 @@ components/             대시보드 UI
 ## 팀 컬러 · 로고
 - 팀별 대표색은 `lib/teamTheme.ts`의 `TEAM_COLORS`에 있고, 선택한 팀에 따라 배너·포인트 색이 바뀝니다.
   어두운 배경에서 읽기 어려운 색(남색·검정 등)은 자동으로 밝게 보정해 포인트 색으로 씁니다.
-- 기본 엠블럼은 팀 컬러 약칭 배지입니다. 공식 로고를 쓰려면 사용 권한이 있는 이미지를
-  `public/logos/`에 넣고 `TEAM_LOGOS`에 경로를 등록하세요. 예: `"kbo-hanwha": "/logos/kbo-hanwha.png"`
+- 기본 엠블럼은 팀 컬러 약칭 배지입니다. 로고 이미지를 `public/logos/{팀id}.png` 로 넣으면
+  빌드 때 자동 등록되어 배지 대신 표시됩니다. 예: `kbo-hanwha.png`, `mlb-lad.svg` (자세한 건 public/logos/README.md)
