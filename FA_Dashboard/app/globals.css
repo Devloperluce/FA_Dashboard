@@ -299,3 +299,31 @@ svg.banner-badge { box-shadow: none !important; filter: drop-shadow(0 6px 14px r
   .kpi.accent .kpi-value { text-shadow: none; }
   .fav { box-shadow: var(--shadow); }
 }
+
+/* ---------- 번역 ---------- */
+.title-wrap { display: grid; gap: 4px; justify-items: start; }
+.orig { font-size: 12px; color: var(--text-3); line-height: 1.4; }
+.tr-btn {
+  display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); background: transparent;
+  color: var(--text-2); font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; cursor: pointer;
+}
+.tr-btn:hover { border-color: var(--accent); color: var(--text); text-decoration: none; }
+.tr-btn.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.tr-btn:disabled { opacity: 0.6; cursor: progress; }
+.tr-icon { flex: none; }
+.tr-note { margin: 10px 18px 0; font-size: 13px; color: var(--text-2); background: var(--panel-2); border: 1px solid var(--line); padding: 8px 12px; border-radius: 8px; }
+
+/* ---------- AI 브리핑 ---------- */
+.ai-brief { margin-bottom: 12px; border-left: 4px solid var(--accent); }
+.ai-brief .card-label { color: var(--accent); }
+.ai-spark { font-size: 15px; }
+.ai-summary { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 6px; font-size: 16px; font-weight: 600; line-height: 1.5; }
+.players { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.player { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; background: var(--panel-2); border-radius: 8px; padding: 8px 10px; border-left: 3px solid var(--s-other); }
+.player.st-done { border-left-color: var(--s-done); }
+.player.st-leaving { border-left-color: var(--s-leaving); }
+.player.st-talks { border-left-color: var(--s-talks); }
+.player.st-rumor { border-left-color: var(--s-rumor); }
+.player .tag { justify-self: start; }
+.player-note { grid-column: 1 / -1; font-size: 13px; color: var(--text-2); }
+.ai-mark { font-size: 9px; font-weight: 800; margin-left: 2px; color: var(--accent); letter-spacing: 0.04em; }

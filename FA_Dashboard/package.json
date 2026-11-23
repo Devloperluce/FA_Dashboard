@@ -8,7 +8,9 @@
     "prebuild": "node scripts/gen-logos.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx tests/news.test.ts && tsx tests/ai.test.ts && tsx tests/classify.test.ts headlines.json && tsx tests/classify.test.ts holdout.json && tsx tests/classify.test.ts fresh.json",
+    "dev:snapshot": "NEWS_SNAPSHOT=1 next dev"
   },
   "dependencies": {
     "fast-xml-parser": "^5.12.1",
@@ -20,6 +22,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

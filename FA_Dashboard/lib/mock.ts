@@ -40,5 +40,21 @@ export function mockNews(team: Team): NewsResponse {
       { lang: "en", items: items.filter((x) => x.lang === "en").map((x) => x.raw) },
     ]),
     errors: [],
+    ai: process.env.AI_MOCK === "1"
+      ? {
+          model: "mock",
+          summary: [
+            `${team.ko}, 내부 FA 선수A와 4년 계약을 마치며 첫 계약을 신고했다.`,
+            "외부 FA 선수B 영입 협상이 막바지 단계로 보도되고 있다.",
+            "선수C는 결별 수순이라는 보도가 이어지는 중이다.",
+          ],
+          players: [
+            { name: "선수A", status: "done", note: "4년 계약 완료" },
+            { name: "선수B", status: "talks", note: "협상 막바지" },
+            { name: "선수C", status: "leaving", note: "결별 수순 보도" },
+            { name: "선수D", status: "rumor", note: "영입 후보 거론" },
+          ],
+        }
+      : null,
   };
 }

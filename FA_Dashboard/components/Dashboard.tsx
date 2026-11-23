@@ -9,6 +9,7 @@ import { clock, dateLabel, dayKey, save, storage, timeAgo } from "./format";
 import { STATUS_META, STATUS_ORDER, type Status } from "@/lib/classify";
 import type { NewsItem, NewsResponse } from "@/lib/news";
 import { leagueById, resolveTeam } from "@/lib/teams";
+import { canTranslateInBrowser, googleTranslateUrl, translateEnToKo } from "./translate";
 
 const REFRESH_MS = 5 * 60 * 1000;
 const FAV_KEY = "fa:favorites";
@@ -34,6 +35,42 @@ export default function Dashboard() {
   const [lang, setLang] = useState<LangFilter>("all");
   const [onlyTeam, setOnlyTeam] = useState(true);
   const [q, setQ] = useState("");
+
+  // 번역: 아이템 id → 한국어 제목, 한국어로 보여줄 id, 번역 중 id, 브라우저 번역 실패 id
+  const [koTitles, setKoTitles] = useState<Record<string, string>>({});
+  const [showKo, setShowKo] = useState<Set<string>>(new Set());
+  const [busyKo, setBusyKo] = useState<Set<string>>(new Set());
+  const [failedKo, setFailedKo] = useState<Set<string>>(new Set());
+  const [autoKo, setAutoKo] = useState(false);
+  const [trNote, setTrNote] = useState<string | null>(null);
+  const koOf = (it: NewsItem) => it.titleKo ?? koTitles[it.id];
+  const setIn = (fn: typeof setShowKo, id: string, on: boolean) =>
+    fn((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
+  const fetchKo = async (it: NewsItem) => {
+    if (koOf(it)) return koOf(it);
+    setIn(setBusyKo, it.id, true);
+    const r = await translateEnToKo(it.title);
+    setIn(setBusyKo, it.id, false);
+    if (r) setKoTitles((prev) => ({ ...prev, [it.id]: r }));
+    else setIn(setFailedKo, it.id, true);
+    return r;
+  };
+
+  const toggleKo = async (it: NewsItem) => {
+    if (showKo.has(it.id)) return setIn(setShowKo, it.id, false);
+    if (!koOf(it) && !canTranslateInBrowser()) {
+      // 내장 번역이 없는 브라우저: 클릭한 순간 바로 구글 번역 열기 (팝업 차단 방지)
+      window.open(googleTranslateUrl(it.title), "_blank", "noopener");
+      return;
+    }
+    if (await fetchKo(it)) setIn(setShowKo, it.id, true);
+  };
 
   // 저장된 즐겨찾기 복원
   useEffect(() => {
@@ -104,6 +141,34 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [nextAt, load]);
 
+  // "해외 기사 한국어로" 켜면 보이는 영문 기사를 차례로 번역
+  useEffect(() => {
+    if (!autoKo || !data) return;
+    let cancelled = false;
+    (async () => {
+      const targets = data.items.filter((i) => i.lang === "en").slice(0, 60);
+      const needBrowser = targets.some((i) => !koOf(i));
+      if (needBrowser && !canTranslateInBrowser()) {
+        setTrNote("이 브라우저는 내장 번역을 지원하지 않아요(Chrome 최신 버전 지원). 기사 옆 번역 버튼을 누르면 구글 번역으로 열려요.");
+      }
+      for (const it of targets) {
+        if (cancelled) return;
+        if (koOf(it) || (canTranslateInBrowser() && (await fetchKo(it)))) setIn(setShowKo, it.id, true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoKo, data]);
+
+  useEffect(() => {
+    if (!autoKo) {
+      setShowKo(new Set());
+      setTrNote(null);
+    }
+  }, [autoKo]);
+
   const resolved = activeId ? resolveTeam(activeId) : null;
   const league = resolved ? leagueById(resolved.team.league) : null;
 
@@ -119,7 +184,10 @@ export default function Dashboard() {
     return base.filter(
       (i) =>
         (!statusFilter || i.status === statusFilter) &&
-        (!term || i.title.toLowerCase().includes(term) || i.source.toLowerCase().includes(term)),
+        (!term ||
+          i.title.toLowerCase().includes(term) ||
+          (koOf(i) ?? "").toLowerCase().includes(term) ||
+          i.source.toLowerCase().includes(term)),
     );
   }, [base, statusFilter, q]);
 
@@ -257,6 +325,31 @@ export default function Dashboard() {
                 <Kpi label="NEW" sub="지난 확인 이후" value={newCount} accent={newCount > 0} />
               </section>
 
+              {data.ai && (
+                <section className="card ai-brief">
+                  <div className="card-label">
+                    <span className="ai-spark" aria-hidden>✦</span> AI 브리핑
+                  </div>
+                  <ol className="ai-summary">
+                    {data.ai.summary.map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ol>
+                  {data.ai.players.length > 0 && (
+                    <div className="players" aria-label="선수별 현황">
+                      {data.ai.players.map((p) => (
+                        <div key={p.name} className={`player st-${p.status}`}>
+                          <strong>{p.name}</strong>
+                          <StatusTag status={p.status} />
+                          <span className="player-note">{p.note}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="muted small">기사 제목만 보고 AI({data.ai.model})가 정리한 내용이라 틀릴 수 있어요. 원문 기사를 함께 확인하세요.</p>
+                </section>
+              )}
+
               <section className="row hero-row">
                 <article className="card hero">
                   <div className="card-label">
@@ -264,10 +357,16 @@ export default function Dashboard() {
                   </div>
                   {latest ? (
                     <>
-                      <StatusTag status={latest.status} />
-                      <a className="hero-title" href={latest.link} target="_blank" rel="noreferrer">
-                        {latest.title}
-                      </a>
+                      <StatusTag status={latest.status} ai={latest.statusBy === "ai"} />
+                      <Title
+                        it={latest}
+                        className="hero-title"
+                        ko={koOf(latest)}
+                        showKo={showKo.has(latest.id)}
+                        busy={busyKo.has(latest.id)}
+                        failed={failedKo.has(latest.id)}
+                        onToggle={toggleKo}
+                      />
                       <div className="meta">
                         {latest.source} · {timeAgo(latest.publishedAt, now)}
                         {latest.coverage > 1 && ` · ${latest.coverage}개 매체 보도`}
@@ -282,9 +381,15 @@ export default function Dashboard() {
                   <div className="card-label">✓ 최근 확정 소식</div>
                   {latestDone ? (
                     <>
-                      <a className="sub-title" href={latestDone.link} target="_blank" rel="noreferrer">
-                        {latestDone.title}
-                      </a>
+                      <Title
+                        it={latestDone}
+                        className="sub-title"
+                        ko={koOf(latestDone)}
+                        showKo={showKo.has(latestDone.id)}
+                        busy={busyKo.has(latestDone.id)}
+                        failed={failedKo.has(latestDone.id)}
+                        onToggle={toggleKo}
+                      />
                       <div className="meta">
                         {latestDone.source} · {timeAgo(latestDone.publishedAt, now)}
                       </div>
@@ -320,7 +425,9 @@ export default function Dashboard() {
                           </li>
                         ))}
                       </ul>
-                      <p className="muted small">제목 키워드 기반 자동 분류 · 항목을 누르면 목록이 필터됩니다.</p>
+                      <p className="muted small">
+                        {base.some((i) => i.statusBy === "ai") ? "AI가 기사 제목을 읽고 분류했어요" : "제목 키워드 규칙으로 자동 분류해서 틀릴 수 있어요"} · 항목을 누르면 목록이 필터됩니다.
+                      </p>
                     </>
                   ) : (
                     <p className="muted">분류할 기사가 없어요.</p>
@@ -345,6 +452,12 @@ export default function Dashboard() {
                     <input type="checkbox" checked={onlyTeam} onChange={(e) => setOnlyTeam(e.target.checked)} />
                     제목에 팀명 있는 기사만
                   </label>
+                  {data.items.some((i) => i.lang === "en") && (
+                    <label className="toggle">
+                      <input type="checkbox" checked={autoKo} onChange={(e) => setAutoKo(e.target.checked)} />
+                      <TranslateIcon /> 해외 기사 한국어로
+                    </label>
+                  )}
                   {statusFilter && (
                     <button className="chip on" onClick={() => setStatusFilter(null)}>
                       {STATUS_META[statusFilter].label} ✕
@@ -353,6 +466,7 @@ export default function Dashboard() {
                   <input className="input grow" placeholder="선수·매체 검색" value={q} onChange={(e) => setQ(e.target.value)} />
                 </div>
 
+                {trNote && <p className="tr-note">{trNote}</p>}
                 {groups.length === 0 && <p className="muted empty">조건에 맞는 기사가 없어요.</p>}
                 {groups.map(([k, list]) => (
                   <div key={k} className="day">
@@ -365,13 +479,19 @@ export default function Dashboard() {
                           <time className="t-time">{clock(it.publishedAt)}</time>
                           <div className="t-body">
                             <div className="t-tags">
-                              <StatusTag status={it.status} />
+                              <StatusTag status={it.status} ai={it.statusBy === "ai"} />
                               {newIds.has(it.id) && <span className="new">NEW</span>}
                               {it.lang === "en" && <span className="lang">해외</span>}
                             </div>
-                            <a href={it.link} target="_blank" rel="noreferrer" className="t-title">
-                              {it.title}
-                            </a>
+                            <Title
+                              it={it}
+                              className="t-title"
+                              ko={koOf(it)}
+                              showKo={showKo.has(it.id)}
+                              busy={busyKo.has(it.id)}
+                              failed={failedKo.has(it.id)}
+                              onToggle={toggleKo}
+                            />
                             <div className="meta">
                               {it.source}
                               {it.coverage > 1 && ` 외 ${it.coverage - 1}곳`}
@@ -385,7 +505,8 @@ export default function Dashboard() {
               </section>
 
               <footer className="foot">
-                출처: Google News 검색 결과 · 5분마다 갱신 · 분류는 제목 키워드 기반 자동 판정이라 실제와 다를 수 있어요.
+                출처: Google News 검색{resolved.team.league === "mlb" ? " · MLB Trade Rumors" : ""} · 5분마다 갱신
+                {data.ai ? " · 분류·요약: AI" : " · 분류: 제목 키워드 규칙"} · 자동 판정이라 실제와 다를 수 있어요.
               </footer>
             </>
           )}
@@ -395,13 +516,64 @@ export default function Dashboard() {
   );
 }
 
-function StatusTag({ status }: { status: Status }) {
+function StatusTag({ status, ai }: { status: Status; ai?: boolean }) {
   const icon = { done: "✓", leaving: "↗", talks: "⇄", rumor: "?", other: "•" }[status];
   return (
-    <span className={`tag tag-${status}`}>
+    <span className={`tag tag-${status}`} title={ai ? "AI 분류" : "키워드 규칙 분류"}>
       <i className={`dot seg-${status}`} />
       {icon} {STATUS_META[status].label}
+      {ai && <sup className="ai-mark">AI</sup>}
     </span>
+  );
+}
+
+function TranslateIcon() {
+  return (
+    <svg className="tr-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"
+      />
+    </svg>
+  );
+}
+
+type TitleProps = {
+  it: NewsItem;
+  className: string;
+  ko?: string;
+  showKo: boolean;
+  busy: boolean;
+  failed: boolean;
+  onToggle: (it: NewsItem) => void;
+};
+
+/** 기사 제목 + (영문 기사면) 번역 버튼 */
+function Title({ it, className, ko, showKo, busy, failed, onToggle }: TitleProps) {
+  const translated = showKo && ko && ko !== it.title ? ko : null;
+  return (
+    <div className="title-wrap">
+      <a href={it.link} target="_blank" rel="noreferrer" className={className} lang={translated ? "ko" : it.lang}>
+        {translated ? ko : it.title}
+      </a>
+      {translated && <div className="orig" lang="en">{it.title}</div>}
+      {it.lang === "en" &&
+        (failed ? (
+          <a className="tr-btn" href={googleTranslateUrl(it.title)} target="_blank" rel="noreferrer">
+            <TranslateIcon /> 구글 번역으로 보기
+          </a>
+        ) : (
+          <button
+            type="button"
+            className={`tr-btn ${translated ? "on" : ""}`}
+            onClick={() => onToggle(it)}
+            disabled={busy}
+            aria-label={translated ? "원문 보기" : "한국어로 번역"}
+          >
+            <TranslateIcon /> {busy ? "번역 중…" : translated ? "원문" : ko ? "번역 보기" : "번역"}
+          </button>
+        ))}
+    </div>
   );
 }
 
