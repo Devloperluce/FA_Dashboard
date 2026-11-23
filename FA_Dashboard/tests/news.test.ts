@@ -32,4 +32,13 @@ assert.ok(q.some((x) => x.url?.includes("los-angeles-dodgers")), "MLBTR 피드 �
 const tot = buildQueries(teamById("epl-mun")!, "soccer", false);
 assert.ok(tot[0].q.includes('"맨유"'), tot[0].q);
 
+// 다른 팀 계약: 다저스 화면에서는 '다른 팀 계약', 메츠 화면에서는 '확정'
+const skubal = [{ title: "Tarik Skubal Signs Record Contract With Mets: What's Next For The Dodgers?", source: "Bleacher Report", link: "https://x/s", publishedAt: "2026-11-22T00:00:00.000Z" }];
+const lad = mergeItems(teamById("mlb-lad")!, [{ lang: "en", items: skubal }])[0];
+assert.equal(lad.status, "other");
+assert.equal(lad.otherTeam, true);
+const nym = mergeItems(teamById("mlb-nym")!, [{ lang: "en", items: skubal }])[0];
+assert.equal(nym.status, "done", "뒤에 붙은 물음 문장 때문에 루머로 내려가지 않음");
+assert.equal(nym.otherTeam, undefined);
+
 console.log("news tests OK");

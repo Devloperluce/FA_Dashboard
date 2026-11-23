@@ -33,6 +33,7 @@ npm test                  # 파싱·AI 응답 해석·분류 정확도 테스트
                  mergeItems → KBO 계열사·e스포츠 기사 제외
                             → 같은 소식 묶기 (36시간 안 · 같은 상태 · 선수명 공유)
                             → 규칙 분류 (lib/classify.ts)
+                            → 팀 입장 판단: 다른 팀 계약이면 확정에서 제외 (lib/perspective.ts)
                  enrichWithAi (키 있을 때) → AI 재분류·번역·요약, 실패 시 규칙 결과 유지
                           ▼
                  Vercel CDN 5분 캐시 ──▶ 대시보드 (5분마다 자동 갱신)
@@ -43,12 +44,13 @@ npm test                  # 파싱·AI 응답 해석·분류 정확도 테스트
 ```
 app/api/news/route.ts    뉴스 API
 lib/news.ts              검색어 구성, RSS 수집·파싱, 중복·유사 기사 묶기, 노이즈 필터
-lib/classify.ts          상태 분류 규칙 (확정/이탈/협상/루머/기타)
+lib/classify.ts          상태 분류 규칙 (확정/이탈/협상/루머/기타), 문장 단위 판단
+lib/perspective.ts       팀 입장 판단 (다른 팀 계약 구분)
 lib/ai.ts                AI 브리핑 (선택)
 lib/teams.ts             리그·팀·별칭
 lib/teamTheme.ts         팀 컬러, 모드별 포인트 색 대비 보정
 lib/snapshot.ts          스냅샷 모드
-components/              대시보드 UI, 번역(translate.ts), 엠블럼
+components/              홈(Home.tsx), 팀 화면(Dashboard.tsx), 번역(translate.ts), 엠블럼
 tests/                   분류 정답 데이터(실제 기사 156건), RSS 샘플, 테스트
 public/logos/            팀 로고 (파일명 = 팀 id, 빌드 시 자동 등록)
 ```

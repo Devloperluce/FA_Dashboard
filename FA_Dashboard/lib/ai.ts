@@ -135,6 +135,8 @@ export async function enrichWithAi(
       ...it,
       status: r.status ?? it.status,
       statusBy: r.status ? ("ai" as const) : it.statusBy,
+      // AI가 팀 입장에서 다시 판단했으면 규칙의 '다른 팀' 표시는 지움
+      otherTeam: r.status ? undefined : it.otherTeam,
       titleKo: r.ko ?? it.titleKo,
     };
   });

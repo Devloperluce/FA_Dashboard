@@ -86,7 +86,10 @@ export function classify(title: string): Status {
   if (GENERAL.test(t) && !strongDone) return "other";
 
   const speculative = SPECULATIVE.test(t);
-  if (!speculative && DONE.test(t)) return "done";
+  // 문장(절) 단위로 확정 여부 판단: "X, 메츠와 계약 체결: 다저스는 이제 어떻게?"처럼
+  // 뒤에 붙은 추측 문장이 앞의 확정 문장까지 루머로 끌어내리지 않게
+  const clauses = t.split(/(?<=[?!:;…|—–,·])\s*|\s+-\s+/).filter((c) => c.trim());
+  if (clauses.some((c) => DONE.test(c) && !SPECULATIVE.test(c))) return "done";
   // "결별한 OO, 우리 팀으로 돌아오나?" 처럼 복귀 추측은 이탈이 아니라 루머
   if (speculative && /돌아오나|복귀|재영입|return to/i.test(t)) return "rumor";
   if (LEAVING.test(t)) return "leaving";

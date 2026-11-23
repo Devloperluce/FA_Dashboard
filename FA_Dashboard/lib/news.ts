@@ -1,5 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import { classify, type Status } from "./classify";
+import { isOtherTeamDeal } from "./perspective";
 import type { Sport, Team } from "./teams";
 import type { AiBrief } from "./ai";
 
@@ -13,6 +14,8 @@ export type NewsItem = {
   status: Status;
   /** 상태를 누가 판단했는지: 규칙(rule) 또는 AI */
   statusBy: "rule" | "ai";
+  /** 다른 팀의 계약 소식 (예: 다저스 화면에서 "스쿠벌, 메츠와 계약") — 확정 숫자에서 제외 */
+  otherTeam?: boolean;
   /** 영문 기사의 한국어 번역 제목 (AI 브리핑이 켜져 있을 때) */
   titleKo?: string;
   /** 제목에 팀 이름/별칭이 들어가 있는지 */
@@ -231,7 +234,10 @@ export function mergeItems(
       const key = normalize(r.title);
       if (!key) continue;
       const g = storyTokens(r.title, names);
-      const status = classify(r.title);
+      let status = classify(r.title);
+      // 팀 입장에서 다시 보기: 계약 당사자가 다른 팀이면 '확정'이 아니라 '다른 팀 소식'
+      const otherTeam = status === "done" && isOtherTeamDeal(r.title, team);
+      if (otherTeam) status = "other";
       let existing = byKey.get(key);
       if (!existing) {
         // 완전히 같은 제목이 없으면 "같은 소식을 다른 매체가 쓴 기사"를 찾음:
@@ -266,6 +272,7 @@ export function mergeItems(
         lang,
         status,
         statusBy: "rule",
+        otherTeam: otherTeam || undefined,
         // 팀 전용 피드(MLB Trade Rumors 팀 페이지)는 제목에 팀명이 없어도 그 팀 소식
         mentionsTeam: !!r.teamFeed || matchers.some((re) => re.test(r.title)),
         coverage: 1,

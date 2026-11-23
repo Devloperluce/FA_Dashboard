@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TeamPicker from "./TeamPicker";
+import Home from "./Home";
 import DailyChart from "./DailyChart";
 import TeamBadge from "./TeamBadge";
 import { teamTheme, themeVars } from "@/lib/teamTheme";
@@ -23,6 +24,8 @@ export default function Dashboard() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  // 홈(내 팀 전체 보기) ↔ 팀 상세. 주소: / = 홈, /?team=mlb-nyy = 팀 상세 (뒤로 가기·링크 공유 가능)
+  const [atHome, setAtHome] = useState(true);
 
   const [data, setData] = useState<NewsResponse | null>(null);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
@@ -76,19 +79,53 @@ export default function Dashboard() {
   useEffect(() => {
     const favs = storage<string[]>(FAV_KEY, []).filter((id) => resolveTeam(id));
     const active = storage<string | null>(ACTIVE_KEY, null);
+    const fromUrl = new URLSearchParams(location.search).get("team");
     setFavorites(favs);
-    setActiveId(active && favs.includes(active) ? active : favs[0] ?? null);
-    setPicking(favs.length === 0);
+    if (fromUrl && resolveTeam(fromUrl)) {
+      // 공유받은 링크: 즐겨찾기에 없는 팀이어도 바로 보여줌
+      setActiveId(fromUrl);
+      setAtHome(false);
+    } else {
+      setActiveId(active && favs.includes(active) ? active : favs[0] ?? null);
+      setAtHome(true);
+      setPicking(favs.length === 0);
+    }
     setReady(true);
+
+    const onPop = () => {
+      const t = new URLSearchParams(location.search).get("team");
+      setPicking(false);
+      if (t && resolveTeam(t)) {
+        setActiveId(t);
+        setAtHome(false);
+      } else setAtHome(true);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  const goHome = () => {
+    setPicking(false);
+    setAtHome(true);
+    if (location.search) history.pushState(null, "", location.pathname);
+    window.scrollTo({ top: 0 });
+  };
+  const openTeam = (id: string) => {
+    setPicking(false);
+    setAtHome(false);
+    setActiveId(id);
+    const url = `${location.pathname}?team=${encodeURIComponent(id)}`;
+    if (location.pathname + location.search !== url) history.pushState(null, "", url);
+    window.scrollTo({ top: 0 });
+  };
 
   const toggleFavorite = (id: string) => {
     const adding = !favorites.includes(id);
     const next = adding ? [...favorites, id] : favorites.filter((x) => x !== id);
     setFavorites(next);
     save(FAV_KEY, next);
-    if (adding) setActiveId(id);
-    else if (activeId === id) setActiveId(next[next.length - 1] ?? null);
+    // 팀 화면의 ☆로 빼도 지금 보고 있는 화면은 그대로 둠. 즐겨찾기가 다 없어지면 팀 고르기로
+    if (!next.length && atHome) setPicking(true);
   };
 
   useEffect(() => {
@@ -125,15 +162,18 @@ export default function Dashboard() {
   useEffect(() => {
     setData(null);
     setStatusFilter(null);
-    if (activeId) load(activeId);
-  }, [activeId, load]);
+    if (activeId && !atHome) load(activeId);
+  }, [activeId, atHome, load]);
+
+  const atHomeRef = useRef(atHome);
+  atHomeRef.current = atHome || picking;
 
   // 1초 시계 + 자동 갱신
   useEffect(() => {
     const t = setInterval(() => {
       const n = Date.now();
       setNow(n);
-      if (activeIdRef.current && nextAt && n >= nextAt && !document.hidden) {
+      if (activeIdRef.current && !atHomeRef.current && nextAt && n >= nextAt && !document.hidden) {
         setNextAt(0);
         load(activeIdRef.current);
       }
@@ -217,34 +257,50 @@ export default function Dashboard() {
 
   const remain = Math.max(0, Math.ceil((nextAt - now) / 1000));
   const total = STATUS_ORDER.reduce((s, k) => s + counts[k], 0);
-  const theme = teamTheme(picking ? null : activeId);
+  const inTeam = !picking && !atHome;
+  const theme = teamTheme(inTeam ? activeId : null);
+  const isFavorite = !!activeId && favorites.includes(activeId);
   const ticker = base.slice(0, 8);
 
   return (
     <div className="shell" style={themeVars(theme) as React.CSSProperties}>
       <header className="topbar">
-        <div className="brand">
+        <a
+          className="brand"
+          href="/"
+          onClick={(e) => {
+            e.preventDefault();
+            if (favorites.length) goHome();
+          }}
+          aria-label="홈으로"
+        >
           <span className="logo" aria-hidden>FA</span>
           <div>
             <h1>FA RADAR</h1>
             <p>스토브리그 · 이적시장 실시간 현황</p>
           </div>
-        </div>
+        </a>
         <nav className="fav-tabs" aria-label="내 팀">
+          {favorites.length > 0 && (
+            <button className={`fav home-tab ${atHome && !picking ? "on" : ""}`} onClick={goHome} aria-current={atHome && !picking ? "page" : undefined}>
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+                <path fill="currentColor" d="M12 3 2 11.5h3V21h6v-6h2v6h6v-9.5h3z" />
+              </svg>
+              홈
+            </button>
+          )}
           {favorites.map((id) => {
             const r = resolveTeam(id);
             if (!r) return null;
             const t = teamTheme(id);
-            const on = id === activeId && !picking;
+            const on = id === activeId && inTeam;
             return (
               <button
                 key={id}
                 className={`fav ${on ? "on" : ""}`}
                 style={on ? { background: t.primary, color: t.ink, borderColor: t.secondary } : undefined}
-                onClick={() => {
-                  setActiveId(id);
-                  setPicking(false);
-                }}
+                onClick={() => openTeam(id)}
+                aria-current={on ? "page" : undefined}
               >
                 <TeamBadge teamId={id} size={22} />
                 {r.team.ko}
@@ -261,11 +317,15 @@ export default function Dashboard() {
         <TeamPicker
           favorites={favorites}
           onToggle={toggleFavorite}
-          onClose={favorites.length ? () => setPicking(false) : undefined}
+          onClose={favorites.length ? goHome : undefined}
         />
       )}
 
-      {!picking && resolved && activeId && (
+      {!picking && atHome && favorites.length > 0 && (
+        <Home favorites={favorites} onOpen={openTeam} onManage={() => setPicking(true)} />
+      )}
+
+      {inTeam && resolved && activeId && (
         <main>
           <section className="banner">
             <div className="banner-stripe" aria-hidden />
@@ -276,7 +336,17 @@ export default function Dashboard() {
                   {league?.name ?? (resolved.sport === "baseball" ? "야구" : "해외축구")} ·{" "}
                   {resolved.sport === "baseball" ? "FA 시장" : "이적 시장"}
                 </div>
-                <h2 className="team-title">{resolved.team.ko}</h2>
+                <h2 className="team-title">
+                  {resolved.team.ko}
+                  <button
+                    className={`fav-star ${isFavorite ? "on" : ""}`}
+                    onClick={() => toggleFavorite(activeId)}
+                    aria-pressed={isFavorite}
+                    title={isFavorite ? "내 팀에서 빼기" : "내 팀에 추가"}
+                  >
+                    {isFavorite ? "★" : "☆"}
+                  </button>
+                </h2>
                 <div className="banner-en">{resolved.team.en}</div>
               </div>
             </div>
@@ -357,7 +427,7 @@ export default function Dashboard() {
                   </div>
                   {latest ? (
                     <>
-                      <StatusTag status={latest.status} ai={latest.statusBy === "ai"} />
+                      <StatusTag status={latest.status} ai={latest.statusBy === "ai"} otherTeam={latest.otherTeam} />
                       <Title
                         it={latest}
                         className="hero-title"
@@ -479,7 +549,7 @@ export default function Dashboard() {
                           <time className="t-time">{clock(it.publishedAt)}</time>
                           <div className="t-body">
                             <div className="t-tags">
-                              <StatusTag status={it.status} ai={it.statusBy === "ai"} />
+                              <StatusTag status={it.status} ai={it.statusBy === "ai"} otherTeam={it.otherTeam} />
                               {newIds.has(it.id) && <span className="new">NEW</span>}
                               {it.lang === "en" && <span className="lang">해외</span>}
                             </div>
@@ -516,7 +586,14 @@ export default function Dashboard() {
   );
 }
 
-function StatusTag({ status, ai }: { status: Status; ai?: boolean }) {
+function StatusTag({ status, ai, otherTeam }: { status: Status; ai?: boolean; otherTeam?: boolean }) {
+  if (otherTeam) {
+    return (
+      <span className="tag tag-other other-team" title="다른 팀의 계약 소식이라 확정 숫자에서 뺐어요">
+        <i className="dot seg-other" />↪ 다른 팀 계약
+      </span>
+    );
+  }
   const icon = { done: "✓", leaving: "↗", talks: "⇄", rumor: "?", other: "•" }[status];
   return (
     <span className={`tag tag-${status}`} title={ai ? "AI 분류" : "키워드 규칙 분류"}>
